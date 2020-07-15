@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import Tag
+from core.models import Tag, Recipe
 
 from recipe.serializers import TagSerializer
 
@@ -79,3 +79,40 @@ class PrivateTagsApiTests(TestCase):
         res = self.client.post(TAGS_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_retreive_tags_assigned_to_recipes(self):
+        """Test filtering tags assigned to recipe"""
+        tag1 = Tag.objects.create(user=self.user, name="breakfast")
+        tag2 = Tag.objects.create(user=self.user, name="lunch")
+        recipe = Recipe.objects.create(
+            user=self.user, title="Eggs and Toast", time_minutes=10, price=5.00
+        )
+        recipe.tags.add(tag1)
+
+        res = self.client.get(TAGS_URL, {"assigned_only": 1})
+
+        serializer1 = TagSerializer(tag1)
+        serializer2 = TagSerializer(tag2)
+
+        self.assertIn(serializer1.data, res.data)
+        self.assertNotIn(serializer2.data, res.data)
+
+    def test_retrieve_tags_assigned_unique(self):
+        """Test filtering tags by assigned returns unique items"""
+        # Create two tags and two recipes
+        # Only assign one of the tags to both recipes
+        tag = Tag.objects.create(user=self.user, name="breakfast")
+        Tag.objects.create(user=self.user, name="lunch")
+        recipe1 = Recipe.objects.create(
+            user=self.user, title="Eggs and Toast", time_minutes=10, price=5.00
+        )
+        recipe1.tags.add(tag)
+        recipe2 = Recipe.objects.create(
+            user=self.user, title="Oatmeal", time_minutes=10, price=5.00
+        )
+        recipe2.tags.add(tag)
+
+        res = self.client.get(TAGS_URL, {"assigned_only": 1})
+
+        # Two tags exist but only "breakfast" is assigned to recipes
+        self.assertEqual(len(res.data), 1)

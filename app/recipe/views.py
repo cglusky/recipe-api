@@ -19,7 +19,14 @@ class BaseRecipeAttrViewSet(
 
     def get_queryset(self):
         """Return objects for the current auth user only"""
-        return self.queryset.filter(user=self.request.user).order_by("-name")
+        assigned_only = bool(int(self.request.query_params.get("assigned_only", 0)))
+        queryset = self.queryset
+        if assigned_only:
+            # If you have two recipes that share a tag or ingredient
+            # this will return the tag or ingredient multple times
+            queryset = queryset.filter(recipe__isnull=False)
+            # Add distinct to the filter to remove duplicates in cases noted above
+        return queryset.filter(user=self.request.user).order_by("-name").distinct()
 
     def perform_create(self, serializer):
         """Create a new object"""
